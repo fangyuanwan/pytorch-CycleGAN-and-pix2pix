@@ -1,99 +1,72 @@
+import os
 import random
-import os.path
+from PIL import Image
 import torchvision.transforms as transforms
-from torchvision.datasets.mnist import MNIST
 from data.base_dataset import BaseDataset
-import scipy.io
 import numpy as np
 
-from PIL import Image
-from PIL.ImageOps import invert
-
-
-class MnistSvhnDataset(BaseDataset):
+class CustomDataset(BaseDataset):
     def name(self):
-        return 'MnistSvhnDataset'
+        return 'CustomDataset'
 
     def initialize(self, opt):
         self.opt = opt
         self.root = opt.dataroot
-        print(opt)
-        self.mnist = MNIST(os.path.join(opt.dataroot, 'mnist'),
-                           train=opt.isTrain, download=True)
-        #svhn_mat_extra = scipy.io.loadmat(os.path.join(opt.dataroot,
-        #                                               'svhn/extra_32x32.mat'))
-        svhn_mat_train = scipy.io.loadmat(os.path.join(opt.dataroot,
-                                                       'svhn/train_32x32.mat'))
-        #svhn_np = np.concatenate((np.array(svhn_mat_train['X']),
-        #                          np.array(svhn_mat_extra['X'])),
-        #                         axis=3)
-        svhn_np = np.array(svhn_mat_train['X'])
-        self.svhn = np.transpose(svhn_np, (3, 0, 1, 2))
-        self.svhn_label = np.array(svhn_mat_train['y'])
+        self.isTrain = opt.isTrain
+        self.data_A, self.data_B = self.load_data()  # Separate data for each domain
 
-        
         self.transform = transforms.Compose([
+            transforms.Resize((128, 128)),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5),
-                                 (0.5, 0.5, 0.5))])
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
 
         self.shuffle_indices()
 
+    def load_data(self):
+        data_A = self.load_year_data('icdar2013')
+        data_B = self.load_year_data('icdar2015')
+        return data_A, data_B
+
+    def load_year_data(self, year):
+        data = []
+        folder_path = os.path.join(self.root, year, 'train' if self.isTrain else 'test')
+        labels_file = os.path.join(folder_path, 'labels.txt')
+
+        with open(labels_file, 'r') as file:
+            labels = file.read().splitlines()
+
+        for label in labels:
+            image_name, image_label = label.split()
+            image_path = os.path.join(folder_path, 'images', image_name + '.png')
+            data.append((image_path, int(image_label)))
+
+        return data
+
     def shuffle_indices(self):
-        self.mnist_indices = list(range(len(self.mnist)))
-        self.svhn_indices = list(range(self.svhn.shape[0]))
-        print('num mnist', len(self.mnist_indices), 'num svhn', len(self.svhn_indices))
+        self.indices = list(range(max(len(self.data_A), len(self.data_B))))
         if not self.opt.serial_batches:
-            random.shuffle(self.mnist_indices)
-            random.shuffle(self.svhn_indices)
+            random.shuffle(self.indices)
 
     def __getitem__(self, index):
-        def convert_gray_to_rgb(x):
-            return x.convert('RGB')
-
-        Gray2RGB = transforms.Lambda(convert_gray_to_rgb)
-
         if index == 0:
             self.shuffle_indices()
 
-        A_img, A_label = self.mnist[self.mnist_indices[index % len(self.mnist)]]
-        #if random.random() < 0.5: # invert the color with 50% prob
-        #    A_img = invert(A_img)
-        A_img = A_img.resize((32, 32))
-        A_img = A_img.convert('RGB')
-        #A_img = np.expand_dims(np.array(A_img), 0)
-        #print('mnist after expand dims:', np.array(A_img).shape)
-        #A_img = np.transpose(A_img, (1, 2, 0))
-        A_img = self.transform(A_img)
-        A_path = '%01d_%05d.png' % (A_label, index)
+        A_index = index % len(self.data_A)
+        B_index = index % len(self.data_B)
 
-        B_img = self.svhn[self.svhn_indices[index]]
-        B_label = self.svhn_label[self.svhn_indices[index % self.svhn.shape[0]]][0] % 10 # 10->0 
-        B_img = self.transform(B_img)
-        B_path = '%01d_%05d.png' % (B_label, index)
+        A_image_path, A_label = self.data_A[A_index]
+        B_image_path, B_label = self.data_B[B_index]
 
-            
-        #A_img, B_img = B_img, A_img
-        #A_path, B_path = B_path, A_path
-        #A_label, B_label = B_label, A_label
+        A_image = Image.open(A_image_path).convert('RGB')
+        A_image = self.transform(A_image)
 
-        item = {}
-        item.update({'A': A_img,
-                     'A_paths': A_path,
-                     'A_label': A_label
-                 })
-        
-        item.update({'B': B_img,
-                     'B_paths': B_path,
-                     'B_label': B_label
-                 })
+        B_image = Image.open(B_image_path).convert('RGB')
+        B_image = self.transform(B_image)
+
+        item = {'A': A_image, 'B': B_image, 'A_paths': A_image_path, 'B_paths': B_image_path}
         return item
-        
-    def __len__(self):
-        #if self.opt.which_direction == 'AtoB':
-        #    return len(self.mnist)
-        #else:            
-        #    return self.svhn.shape[0]
 
-        return self.svhn.shape[0] #min(len(self.mnist), self.svhn.shape[0])
-        
+    def __len__(self):
+        return max(len(self.data_A), len(self.data_B))
+

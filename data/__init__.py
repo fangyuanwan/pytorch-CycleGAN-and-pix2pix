@@ -29,6 +29,10 @@ def CreateDataset(opt):
     elif opt.dataset_mode == 'svhn_mnist':
         from data.svhn_mnist_dataset import SvhnMnistDataset
         dataset = SvhnMnistDataset()
+    elif opt.dataset_mode == 'icdar2013_icdar2015':
+        from data.icdar2013_icdar2015_dataset import CustomDataset
+        dataset = CustomDataset()
+    
   
     else:
         raise ValueError("Dataset [%s] not recognized." % opt.dataset_mode)
