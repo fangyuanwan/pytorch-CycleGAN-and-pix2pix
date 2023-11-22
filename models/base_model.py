@@ -86,6 +86,7 @@ class BaseModel():
             if isinstance(name, str):
                 save_filename = '%s_net_%s.pth' % (which_epoch, name)
                 save_path = os.path.join(self.save_dir, save_filename)
+                print(save_path)
                 net = getattr(self, 'net' + name)
 
                 if len(self.gpu_ids) > 0 and torch.cuda.is_available():

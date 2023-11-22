@@ -425,9 +425,47 @@ class Classifier(nn.Module):
 
         self.after_linear = nn.Sequential(*sequence)
     
-    def forward(self, x):
-        bs = x.size(0)
-        out = self.after_linear(self.before_linear(x).view(bs, -1))
-        return out
- #       return nn.functional.log_softmax(out, dim=1)
+#     def forward(self, x):
+#         print("Size before reshaping:", x.size())
+
+#         bs = x.size(0)
+#         print("Size after reshaping and before linear layer:", x.size())
+
+#         out = self.after_linear(self.before_linear(x).view(bs, -1))
+
+#         return out
+#  #       return nn.functional.log_softmax(out, dim=1)
  
+    # def forward(self, x):
+    #     # ... other layers ...
+
+    #     # Add a debug print statement before the reshaping operation
+    #     print("Size before reshaping:", x.size())
+
+    #     # Flatten the tensor correctly
+    #     num_features = x.size(1) * x.size(2) * x.size(3)
+    #     x = x.view(x.size(0), num_features)
+
+    #     # Add another debug print statement right before the linear layer
+    #     print("Size after reshaping and before linear layer:", x.size())
+
+    #     # Your linear layer
+    #     out = self.linear_layer(x)
+    #     return out
+    def forward(self, x):
+        print("Size before any operation:", x.size())
+
+        bs = x.size(0)
+        # Assuming 'before_linear' is a layer like Conv2d that changes the size
+        x = self.before_linear(x)
+        print("Size after before_linear:", x.size())
+
+        # Flatten the tensor for the linear layer
+        x = x.view(bs, -1)
+        print("Size after flattening (before after_linear):", x.size())
+
+        out = self.after_linear(x)
+        print("Size after after_linear:", out.size())
+
+        return out
+        # return nn.functional.log_softmax(out, dim=1)  # Uncomment if softmax is needed

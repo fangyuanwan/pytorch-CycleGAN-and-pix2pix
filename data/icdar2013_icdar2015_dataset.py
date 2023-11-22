@@ -16,7 +16,7 @@ class CustomDataset(BaseDataset):
         self.data_A, self.data_B = self.load_data()  # Separate data for each domain
 
         self.transform = transforms.Compose([
-            transforms.Resize((128, 128)),
+            transforms.Resize((32, 32)),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
@@ -64,8 +64,12 @@ class CustomDataset(BaseDataset):
         B_image = Image.open(B_image_path).convert('RGB')
         B_image = self.transform(B_image)
 
-        item = {'A': A_image, 'B': B_image, 'A_paths': A_image_path, 'B_paths': B_image_path}
+        # Include labels in the returned item
+        item = {'A': A_image, 'B': B_image, 
+                'A_paths': A_image_path, 'B_paths': B_image_path, 
+                'A_label': A_label, 'B_label': B_label}
         return item
+
 
     def __len__(self):
         return max(len(self.data_A), len(self.data_B))
